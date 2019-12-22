@@ -4,8 +4,11 @@ export const getDefaultPolicy = () => ({
   // array of strings
   projects: [],
 
+  // array of strings
+  clusters: [],
+
   // array of objects
-  tags: [],
+  nodePools: [],
 
   schedulename: '',
 });

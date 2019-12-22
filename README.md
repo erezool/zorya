@@ -1,5 +1,5 @@
 # zorya
-GCP Instance, Cloud SQL Scheduler & GKE node pools
+GKE node pools only
 
 [Blog Post](http://bit.ly/zorya_blog)
 

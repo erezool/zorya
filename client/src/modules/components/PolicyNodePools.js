@@ -37,100 +37,100 @@ const styles = theme => ({
   },
 });
 
-class PolicyTags extends React.Component {
+class PolicyNodePools extends React.Component {
   constructor(props, context) {
     super(props, context);
     this.state = {
-      tags: [
+      nodePools: [
         {
-          key: '',
-          value: '',
+          name: '',
+          size: '',
         },
       ],
     };
   }
 
   componentDidMount() {
-    if (this.props.tags && this.props.tags.length > 0) {
-      let tags = [];
-      this.props.tags.forEach(tag => {
-        forOwn(tag, (value, key) => {
-          tags.push({
-            key,
-            value,
+    if (this.props.nodePools && this.props.nodePools.length > 0) {
+      let nodePools = [];
+      this.props.nodePools.forEach(nodePool => {
+        forOwn(nodePool, (size, name) => {
+          nodePools.push({
+            name,
+            size,
           });
         });
       });
       this.setState({
-        tags,
+        nodePools,
       });
     }
   }
 
   publishChanges = shouldUpdateErrors => {
-    const tags = map(this.state.tags, tag => ({
-      [tag.key]: tag.value,
+    const nodePools = map(this.state.nodePools, nodePool => ({
+      [nodePool.name]: nodePool.size,
     }));
-    this.props.onChange(tags, shouldUpdateErrors);
+    this.props.onChange(nodePools, shouldUpdateErrors);
   };
 
   handleChange = (index, name) => event => {
-    const tags = this.state.tags.slice();
-    tags[index][name] = event.target.value;
-    this.setState({ tags }, () => this.publishChanges(false));
+    const nodePools = this.state.nodePools.slice();
+    nodePools[index][name] = event.target.value;
+    this.setState({ nodePools }, () => this.publishChanges(false));
   };
 
-  handleClearTag = index => event => {
-    const tags = this.state.tags.slice();
-    if (tags.length > 1) {
-      tags.splice(index, 1);
-      this.setState({ tags }, () => this.publishChanges(true));
+  handleClearNodePool = index => event => {
+    const nodePools = this.state.nodePools.slice();
+    if (nodePools.length > 1) {
+      nodePools.splice(index, 1);
+      this.setState({ nodePools }, () => this.publishChanges(true));
     }
   };
 
-  handleAddTag = event => {
-    const tags = this.state.tags.slice();
-    tags.push({
-      key: '',
-      value: '',
+  handleAddNodePool = event => {
+    const nodePools = this.state.nodePools.slice();
+    nodePools.push({
+      name: '',
+      size: '',
     });
-    this.setState({ tags }, () => this.publishChanges(false));
+    this.setState({ nodePools }, () => this.publishChanges(false));
   };
 
   render() {
     const { classes, error } = this.props;
-    const { tags } = this.state;
+    const { nodePools } = this.state;
 
     return (
       <div className={classes.root}>
-        {map(tags, (tag, index) => (
+        {map(nodePools, (nodePool, index) => (
           <FormGroup row key={index}>
             <TextField
-              id="policy-tag-value"
+              id="policy-node-pool-name"
               error={error[index] && error[index][0]}
               helperText=""
-              placeholder="Key"
+              placeholder="name"
               className={classes.textField}
-              value={tags[index].key}
-              onChange={this.handleChange(index, 'key')}
+              value={nodePool.name}
+              onChange={this.handleChange(index, 'name')}
               margin="none"
             />
             <TextField
-              id="policy-tag-key"
+              id="policy-node-pool-size"
               error={error[index] && error[index][1]}
               helperText=""
-              placeholder="Value"
+              placeholder="Size"
               className={classes.textField}
-              value={tags[index].value}
-              onChange={this.handleChange(index, 'value')}
+              value={nodePool.size}
+              onChange={this.handleChange(index, 'size')}
               margin="none"
             />
 
-            {tags.length > 1 && (
+            {nodePools.length > 1 && (
               <IconButton
                 className={classes.iconButton}
                 aria-label="Clear"
-                onClick={this.handleClearTag(index)}
+                onClick={this.handleClearNodePool(index)}
                 classes={{
                   root: classes.iconButton,
                 }}
@@ -141,28 +141,28 @@ class PolicyTags extends React.Component {
           </FormGroup>
         ))}
 
-        {tags.length < 7 && (
+        {nodePools.length < 7 && (
           <Button
             variant="outlined"
             color="primary"
             size="small"
             className={classes.addButton}
-            onClick={this.handleAddTag}
+            onClick={this.handleAddNodePool}
             classes={{
               sizeSmall: classes.sizeSmallButton,
             }}
           >
-            Add tag
+            Add node pool
           </Button>
         )}
       </div>
     );
   }
 }
-PolicyTags.propTypes = {
+PolicyNodePools.propTypes = {
   classes: PropTypes.object.isRequired,
   onChange: PropTypes.func.isRequired,
   error: PropTypes.array.isRequired,
 };
 
-export default withStyles(styles)(PolicyTags);
+export default withStyles(styles)(PolicyNodePools);

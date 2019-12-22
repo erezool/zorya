@@ -19,7 +19,7 @@ import find from 'lodash/find';
 import forOwn from 'lodash/forOwn';
 
 // Project
-import PolicyTags from '../../modules/components/PolicyTags';
+import PolicyNodePools from '../../modules/components/PolicyNodePools';
 import AppPageContent from '../../modules/components/AppPageContent';
 import AppPageActions from '../../modules/components/AppPageActions';
 import PolicyService from '../../modules/api/policy';
@@ -53,7 +53,8 @@ class Policy extends React.Component {
       nameError: false,
       scheduleError: false,
       projectsError: false,
-      tagsError: [],
+      clustersError: false,
+      nodePoolsError: [],
     };
 
     this.policyService = new PolicyService();
@@ -88,12 +89,12 @@ class Policy extends React.Component {
     this.setState({ policy });
   };
 
-  handleChangeTags = (tags, shouldUpdateErrors) => {
+  handleChangeNodePools = (nodePools, shouldUpdateErrors) => {
     const { policy } = this.state;
-    policy.tags = tags;
+    policy.nodePools = nodePools;
     if (shouldUpdateErrors) {
-      const tagsError = this.getTagsError();
-      this.setState({ policy, tagsError });
+      const nodePoolsError = this.getNodePoolsError();
+      this.setState({ policy, nodePoolsError });
     } else {
       this.setState({ policy });
     }
@@ -107,22 +108,31 @@ class Policy extends React.Component {
     });
   };
 
-  getTagsError = () => {
+  handleChangeClusters = event => {
     const { policy } = this.state;
-    const tagsRe = /^[a-z][a-z0-9_-]*[a-z0-9]$/;
-    let tagsError = [];
-    for (let i = 0; i < policy.tags.length; i++) {
-      tagsError.push([false, false]);
-      forOwn(policy.tags[i], (value, key) => {
-        if (!tagsRe.test(key)) {
-          tagsError[i][0] = true;
+    policy.clusters = event.target.value.replace(/\s/g, '').split(',');
+    this.setState({
+      policy,
+    });
+  };
+
+  getNodePoolsError = () => {
+    const { policy } = this.state;
+    const poolNameRe = /^[a-z;,][a-z0-9_\-,;]*[a-z0-9;,]$/;
+    const poolSizeRe = /^[0-9]+$/;
+    let nodePoolsError = [];
+    for (let i = 0; i < policy.nodePools.length; i++) {
+      nodePoolsError.push([false, false]);
+      forOwn(policy.nodePools[i], (size, name) => {
+        if (!poolNameRe.test(name)) {
+          nodePoolsError[i][0] = true;
         }
-        if (!tagsRe.test(value)) {
-          tagsError[i][1] = true;
+        if (!poolSizeRe.test(size)) {
+          nodePoolsError[i][1] = true;
         }
       });
     }
-    return tagsError;
+    return nodePoolsError;
   };
 
   handleSubmit = async event => {
@@ -132,11 +142,13 @@ class Policy extends React.Component {
 
       const nameRe = /^[a-zA-Z][\w-]*[a-zA-Z0-9]$/;
       const projectsRe = /^[a-z][a-z0-9-]+[a-z0-9]$/;
+      const clustersRe = /^[a-z][a-z0-9-]+[a-z0-9]$/;
 
       let nameError = false;
       let projectsError = !policy.projects.length;
+      let clustersError = !policy.clusters.length;
       const scheduleError = !policy.schedulename;
-      const tagsError = this.getTagsError();
+      const nodePoolsError = this.getNodePoolsError();
 
       if (!nameRe.test(policy.name)) {
         nameError = true;
@@ -148,17 +160,25 @@ class Policy extends React.Component {
         }
       }
 
+      for (let i = 0; i < policy.clusters.length && !clustersError; i++) {
+        if (!clustersRe.test(policy.clusters[i])) {
+          clustersError = true;
+        }
+      }
+
       if (
         nameError ||
         projectsError ||
+        clustersError ||
         scheduleError ||
-        find(tagsError, tagErrors => tagErrors[0] || tagErrors[1])
+        find(nodePoolsError, nodePoolsError => nodePoolsError[0] || nodePoolsError[1])
       ) {
         this.setState({
           nameError,
           scheduleError,
           projectsError,
-          tagsError,
+          clustersError,
+          nodePoolsError,
         });
       } else {
         const response = await this.policyService.add(policy);
@@ -183,7 +203,8 @@ class Policy extends React.Component {
       nameError,
       scheduleError,
       projectsError,
-      tagsError,
+      clustersError,
+      nodePoolsError,
     } = this.state;
 
     if (policy) {
@@ -266,10 +287,24 @@ class Policy extends React.Component {
                 }}
               />
 
-              <PolicyTags
-                error={tagsError}
-                tags={policy.tags}
-                onChange={this.handleChangeTags}
+              <TextField
+                id="clusters-list"
+                error={clustersError}
+                helperText="Separated by comma"
+                label="Clusters"
+                className={classes.textField}
+                value={policy.clusters.join(',')}
+                onChange={this.handleChangeClusters}
+                margin="none"
+                InputLabelProps={{
+                  shrink: true,
+                }}
+              />
+
+              <PolicyNodePools
+                error={nodePoolsError}
+                nodePools={policy.nodePools}
+                onChange={this.handleChangeNodePools}
               />
             </FormGroup>
 
