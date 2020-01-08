@@ -55,50 +55,105 @@ class Gke(object):
 
                     logging.info('Handling node pool \'%s\' of cluster \'%s\' of project \'%s\'', node_pool_name, cluster_name, project)
 
-                    # iterate over all instance group urls of the node pool
-                    for instance_group_url in node_pool['instanceGroupUrls']:
+                    # handle autoscaling node-pools differently
+                    if 'autoscaling' in node_pool and node_pool['autoscaling']['enabled']:
 
-                        logging.info('Handling instance group url \'%s\' of node pool \'%s\' of cluster \'%s\'', instance_group_url, node_pool_name, cluster_name)
+                        name = node_pool['selfLink'][node_pool['selfLink'].find('/projects/') + 1:]
+                        logging.info('Node pool \'%s\' is configured with autoscaling', name)
 
-                        # grab the current number of nodes in the instance group
-                        number_of_nodes = gcp.get_instancegroup_no_of_nodes_from_url(instance_group_url)
-                        logging.info('Current number of nodes is \'%s\' for node pool \'%s\' of cluster \'%s\' in project \'%s\'', number_of_nodes, node_pool_name, cluster_name, project)
+                        current_autoscaling = node_pool['autoscaling']
 
-                        # do resizing
+                        autoscaling = {
+                            'autoscaling': {
+                                'enabled': current_autoscaling['enabled'],
+                                'minNodeCount': current_autoscaling['minNodeCount'],
+                                'maxNodeCount': current_autoscaling['maxNodeCount'],
+                                'autoprovisioned': current_autoscaling['autoprovisioned'] if 'autoprovisioned' in current_autoscaling else False
+                            }
+                        }
+
+                        # set new size
                         if int(state) == 1: # size up
-
                             # retrieve the previously stored model
-                            model = GkeNodePoolModel.query(GkeNodePoolModel.Name == instance_group_url).get()
+                            model = GkeNodePoolModel.query(GkeNodePoolModel.Name == name).get()
                             if not model:
-                                logging.warn('No node pool model found in db for instance group url \'%s\'', instance_group_url)
+                                logging.warn('No node pool model found in db for name \'%s\'', name)
                                 continue
 
                             # get the up size from the model
-                            new_size = model.NumberOfNodes
+                            autoscaling['autoscaling']['maxNodeCount'] = model.NumberOfNodes
 
-                            gcp.resize_node_pool(new_size, instance_group_url)
-                            logging.info('Sized up node pool \'%s\' of cluster \'%s\' in project \'%s\' to \'%s\' nodes', node_pool_name, cluster_name, project, new_size)
+                            # update the max node count of the node-pool
+                            self.gke.projects().locations().clusters().nodePools().setAutoscaling(name=name, body=autoscaling).execute()
+                            logging.info('Sized up node pool \'%s\' of cluster \'%s\' in project \'%s\' to \'%s\' nodes', node_pool_name, cluster_name, project, autoscaling['autoscaling']['maxNodeCount'])
 
                             # delete the stored model
                             model.key.delete()
-                            logging.debug('Deleted node pool model for instance group url \'%s\'', instance_group_url)
-
+                            logging.debug('Deleted node pool model for node pool name \'%s\'', name)
+                        
                         else: # size down
 
                             # save current number of nodes for later restore
                             model = GkeNodePoolModel()
-                            model.Name = instance_group_url
-                            model.NumberOfNodes = number_of_nodes
-                            model.key = ndb.Key('GkeNodePoolModel', instance_group_url)
+                            model.Name = name
+                            model.NumberOfNodes = autoscaling['autoscaling']['maxNodeCount']
+                            model.key = ndb.Key('GkeNodePoolModel', name)
                             model.put()
-                            logging.debug('Saved node pool model for instance group url \'%s\' with \'%s\' number of nodes', instance_group_url, number_of_nodes)
+                            logging.debug('Saved node pool model for node pool name \'%s\' with \'%s\' number of nodes', name, autoscaling['autoscaling']['maxNodeCount'])
 
                             # find out the down size value for the node pool
-                            new_size = node_pools[node_pool_name]
+                            autoscaling['autoscaling']['maxNodeCount'] = node_pools[node_pool_name]
 
                             # do actual resize
-                            gcp.resize_node_pool(new_size, instance_group_url)
-                            logging.info('Sized down node pool \'%s\' of cluster \'%s\' in project \'%s\' to \'%s\' nodes', node_pool_name, cluster_name, project, new_size)
+                            self.gke.projects().locations().clusters().nodePools().setAutoscaling(name=name, body=autoscaling).execute()
+                            logging.info('Sized down node pool \'%s\' of cluster \'%s\' in project \'%s\' to \'%s\' nodes', node_pool_name, cluster_name, project, autoscaling['autoscaling']['maxNodeCount'])
+
+                    else: # node pool autoscaling is not turned on, changing managed instance group configuration
+
+                        # iterate over all instance group urls of the node pool
+                        for instance_group_url in node_pool['instanceGroupUrls']:
+
+                            logging.info('Handling instance group url \'%s\' of node pool \'%s\' of cluster \'%s\'', instance_group_url, node_pool_name, cluster_name)
+
+                            # grab the current number of nodes in the instance group
+                            number_of_nodes = gcp.get_instancegroup_no_of_nodes_from_url(instance_group_url)
+                            logging.info('Current number of nodes is \'%s\' for node pool \'%s\' of cluster \'%s\' in project \'%s\'', number_of_nodes, node_pool_name, cluster_name, project)
+
+                            # do resizing
+                            if int(state) == 1: # size up
+
+                                # retrieve the previously stored model
+                                model = GkeNodePoolModel.query(GkeNodePoolModel.Name == instance_group_url).get()
+                                if not model:
+                                    logging.warn('No node pool model found in db for instance group url \'%s\'', instance_group_url)
+                                    continue
+
+                                # get the up size from the model
+                                new_size = model.NumberOfNodes
+
+                                gcp.resize_node_pool(new_size, instance_group_url)
+                                logging.info('Sized up node pool \'%s\' of cluster \'%s\' in project \'%s\' to \'%s\' nodes', node_pool_name, cluster_name, project, new_size)
+
+                                # delete the stored model
+                                model.key.delete()
+                                logging.debug('Deleted node pool model for instance group url \'%s\'', instance_group_url)
+
+                            else: # size down
+
+                                # save current number of nodes for later restore
+                                model = GkeNodePoolModel()
+                                model.Name = instance_group_url
+                                model.NumberOfNodes = number_of_nodes
+                                model.key = ndb.Key('GkeNodePoolModel', instance_group_url)
+                                model.put()
+                                logging.debug('Saved node pool model for instance group url \'%s\' with \'%s\' number of nodes', instance_group_url, number_of_nodes)
+
+                                # find out the down size value for the node pool
+                                new_size = node_pools[node_pool_name]
+
+                                # do actual resize
+                                gcp.resize_node_pool(new_size, instance_group_url)
+                                logging.info('Sized down node pool \'%s\' of cluster \'%s\' in project \'%s\' to \'%s\' nodes', node_pool_name, cluster_name, project, new_size)
 
         except HttpError as http_error:
             logging.error(http_error)
