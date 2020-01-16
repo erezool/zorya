@@ -58,8 +58,14 @@ class Gke(object):
                     # handle autoscaling node-pools differently
                     if 'autoscaling' in node_pool and node_pool['autoscaling']['enabled']:
 
+                        # get the node pool path
                         name = node_pool['selfLink'][node_pool['selfLink'].find('/projects/') + 1:]
                         logging.info('Node pool \'%s\' is configured with autoscaling', name)
+
+                        # fix the link if needed
+                        if '/zones/' in name:
+                            name = name.replace('/zones/', '/locations/')
+                            logging.info('Fixed Node pool link to \'%s\'', name)
 
                         current_autoscaling = node_pool['autoscaling']
 
